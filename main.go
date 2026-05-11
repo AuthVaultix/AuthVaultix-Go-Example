@@ -10,10 +10,10 @@ import (
 func main() {
 
 	AuthVaultixApp := NewAuthVaultix(
-		"test_app",
-		"5d36476ca4",
-		"7b9729387300a04a9a128f2dbe8a9b24659047ab7933ab312dfdca3d5397fb59",
-		"1.0",
+		"",    //app name
+		"",    //owner id
+		"",    //secret
+		"1.0", //version
 	)
 
 	fmt.Println("Connecting...")
