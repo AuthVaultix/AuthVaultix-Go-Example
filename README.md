@@ -62,7 +62,7 @@ cd AuthVaultix-Go-Example
 Open `main.go` and fill in your application details from the [AuthVaultix Dashboard](https://authvaultix.com):
 
 ```go
-AuthVaultixApp.Api(
+AuthVaultixApp := NewAuthVaultix(
     "YourAppName",   // name
     "your_ownerid",  // ownerid
     "your_secret",   // secret
@@ -144,8 +144,7 @@ You can use the `Authvaultix` struct directly in your own Go project:
 ### Initialize
 
 ```go
-app := Authvaultix{}
-app.Api("AppName", "ownerid", "secret", "1.0")
+app := NewAuthVaultix("AppName", "ownerid", "secret", "1.0")
 app.Init() // Must be called before any other method
 ```
 
@@ -158,14 +157,57 @@ app.Login("username", "password")
 ### Register
 
 ```go
-app.Register("username", "password", "LICENSE-KEY")
+app.Register("username", "password", "LICENSE-KEY", "")
 ```
 
 ### License Login
 
 ```go
-app.License("LICENSE-KEY")
+app.LicenseLogin("LICENSE-KEY")
 ```
+
+---
+
+## ⚙️ API Reference
+
+### Authentication & Session
+| Method | Returns | Description |
+|---|---|---|
+| `Init()` | `bool` | Initializes the session with the API. |
+| `Login(username, pass)` | `bool` | Authenticates a user. |
+| `Register(user, pass, key, email)` | `bool` | Registers a new user. |
+| `LicenseLogin(licenseKey)` | `bool` | Authenticates directly via license key. |
+| `Check()` | `bool` | Validates the current session. |
+| `Logout()` | | Terminates session. |
+
+### Account Management
+| Method | Returns | Description |
+|---|---|---|
+| `Upgrade(username, licenseKey)` | `bool` | Upgrades user's subscription. |
+| `ForgotPassword(username, email)`| `bool` | Triggers a password reset email. |
+| `ChangeUsername(newUsername)` | | Changes the current user's username. |
+
+### Security & Logging
+| Method | Returns | Description |
+|---|---|---|
+| `Ban(reason)` | `bool` | Bans the currently authenticated user. |
+| `CheckBlacklist()` | `bool` | Checks if the current HWID is blacklisted. |
+| `Log(message)` | `bool` | Sends a log message to the dashboard. |
+
+### Variables & Data
+| Method | Returns | Description |
+|---|---|---|
+| `GetGlobalVar(varId)` | `string` | Fetches a global server variable. |
+| `GetVar(varName)` | `string` | Fetches a user-specific variable. |
+| `SetVar(varName, value)` | `bool` | Sets a user-specific variable. |
+| `Download(fileId)` | `[]byte` | Securely downloads a file. |
+
+### Communication
+| Method | Returns | Description |
+|---|---|---|
+| `FetchOnline()` | `[]OnlineUser` | Retrieves a list of online clients. |
+| `ChatSend(message, channel)` | `bool` | Sends a chat message. |
+| `ChatFetch(channel)` | `[]ChatMessage`| Fetches chat history for a channel. |
 
 ---
 
