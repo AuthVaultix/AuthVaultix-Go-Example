@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -196,27 +197,44 @@ func GetHWID() string {
 type SystemInfoCollector struct{}
 
 func (s *SystemInfoCollector) GetOSVersion() string {
-	captionCmd := exec.Command("powershell", "-Command", "(Get-CimInstance Win32_OperatingSystem).Caption")
-	captionOut, err := captionCmd.Output()
-	caption := ""
-	if err == nil {
-		caption = strings.TrimSpace(string(captionOut))
-		if strings.HasPrefix(caption, "Microsoft ") {
-			caption = caption[len("Microsoft "):]
+	if runtime.GOOS == "windows" {
+		captionCmd := exec.Command("powershell", "-Command", "(Get-CimInstance Win32_OperatingSystem).Caption")
+		captionOut, err := captionCmd.Output()
+		caption := ""
+		if err == nil {
+			caption = strings.TrimSpace(string(captionOut))
+			if strings.HasPrefix(caption, "Microsoft ") {
+				caption = caption[len("Microsoft "):]
+			}
 		}
-	}
 
-	versionCmd := exec.Command("powershell", "-Command", "(Get-CimInstance Win32_OperatingSystem).Version")
-	versionOut, err := versionCmd.Output()
-	version := ""
-	if err == nil {
-		version = strings.TrimSpace(string(versionOut))
-	}
+		versionCmd := exec.Command("powershell", "-Command", "(Get-CimInstance Win32_OperatingSystem).Version")
+		versionOut, err := versionCmd.Output()
+		version := ""
+		if err == nil {
+			version = strings.TrimSpace(string(versionOut))
+		}
 
-	if caption == "" && version == "" {
-		return "Windows"
+		if caption == "" && version == "" {
+			return "Windows"
+		}
+		return fmt.Sprintf("%s (%s)", caption, version)
+	} else if runtime.GOOS == "darwin" {
+		cmd := exec.Command("sw_vers", "-productVersion")
+		out, err := cmd.Output()
+		if err == nil {
+			return fmt.Sprintf("macOS (%s)", strings.TrimSpace(string(out)))
+		}
+		return "macOS"
+	} else if runtime.GOOS == "linux" {
+		cmd := exec.Command("uname", "-sr")
+		out, err := cmd.Output()
+		if err == nil {
+			return strings.TrimSpace(string(out))
+		}
+		return "Linux"
 	}
-	return fmt.Sprintf("%s (%s)", caption, version)
+	return "Unknown OS"
 }
 
 func (s *SystemInfoCollector) GetPlatform() string {
@@ -228,41 +246,90 @@ func (s *SystemInfoCollector) GetDeviceType() string {
 }
 
 func (s *SystemInfoCollector) GetArchitecture() string {
-	arch := os.Getenv("PROCESSOR_ARCHITECTURE")
-	if arch == "" {
+	if runtime.GOOS == "windows" {
+		arch := os.Getenv("PROCESSOR_ARCHITECTURE")
+		if arch == "" {
+			return "X64"
+		}
+		return strings.ToUpper(arch)
+	} else {
+		cmd := exec.Command("uname", "-m")
+		out, err := cmd.Output()
+		if err == nil {
+			return strings.ToUpper(strings.TrimSpace(string(out)))
+		}
 		return "X64"
 	}
-	return strings.ToUpper(arch)
 }
 
 func (s *SystemInfoCollector) GetCpuCores() string {
-	coresCmd := exec.Command("powershell", "-Command", "(Get-CimInstance Win32_Processor).NumberOfCores")
-	coresOut, err := coresCmd.Output()
-	physicalCores := ""
-	if err == nil {
-		physicalCores = strings.TrimSpace(string(coresOut))
-	}
+	if runtime.GOOS == "windows" {
+		coresCmd := exec.Command("powershell", "-Command", "(Get-CimInstance Win32_Processor).NumberOfCores")
+		coresOut, err := coresCmd.Output()
+		physicalCores := ""
+		if err == nil {
+			physicalCores = strings.TrimSpace(string(coresOut))
+		}
 
-	logicalProcessors := os.Getenv("NUMBER_OF_PROCESSORS")
-	if logicalProcessors == "" {
-		logicalProcessors = "2"
-	}
+		logicalProcessors := os.Getenv("NUMBER_OF_PROCESSORS")
+		if logicalProcessors == "" {
+			logicalProcessors = "2"
+		}
 
-	cores := physicalCores
-	if cores == "" {
-		cores = logicalProcessors
-	}
+		cores := physicalCores
+		if cores == "" {
+			cores = logicalProcessors
+		}
 
-	return fmt.Sprintf("%s Cores / %s Threads", cores, logicalProcessors)
+		return fmt.Sprintf("%s Cores / %s Threads", cores, logicalProcessors)
+	} else {
+		logical := "2"
+		if runtime.GOOS == "darwin" {
+			cmd := exec.Command("sysctl", "-n", "hw.ncpu")
+			out, err := cmd.Output()
+			if err == nil {
+				logical = strings.TrimSpace(string(out))
+			}
+		} else {
+			cmd := exec.Command("nproc")
+			out, err := cmd.Output()
+			if err == nil {
+				logical = strings.TrimSpace(string(out))
+			}
+		}
+		return fmt.Sprintf("%s Cores / %s Threads", logical, logical)
+	}
 }
 
 func (s *SystemInfoCollector) GetRamGB() string {
-	ramCmd := exec.Command("powershell", "-Command", "[Math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB)")
-	ramOut, err := ramCmd.Output()
-	if err != nil {
+	if runtime.GOOS == "windows" {
+		ramCmd := exec.Command("powershell", "-Command", "[Math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB)")
+		ramOut, err := ramCmd.Output()
+		if err != nil {
+			return "0"
+		}
+		return strings.TrimSpace(string(ramOut))
+	} else if runtime.GOOS == "darwin" {
+		cmd := exec.Command("sysctl", "-n", "hw.memsize")
+		out, err := cmd.Output()
+		if err == nil {
+			bytes, err := strconv.ParseUint(strings.TrimSpace(string(out)), 10, 64)
+			if err == nil {
+				return strconv.FormatUint(bytes/(1024*1024*1024), 10)
+			}
+		}
+		return "0"
+	} else {
+		cmd := exec.Command("sh", "-c", "grep MemTotal /proc/meminfo | awk '{print $2}'")
+		out, err := cmd.Output()
+		if err == nil {
+			kb, err := strconv.ParseUint(strings.TrimSpace(string(out)), 10, 64)
+			if err == nil {
+				return strconv.FormatUint(kb/(1024*1024), 10)
+			}
+		}
 		return "0"
 	}
-	return strings.TrimSpace(string(ramOut))
 }
 
 // ==========================================
