@@ -191,6 +191,81 @@ func GetHWID() string {
 }
 
 // ==========================================
+// SystemInfoCollector
+// ==========================================
+type SystemInfoCollector struct{}
+
+func (s *SystemInfoCollector) GetOSVersion() string {
+	captionCmd := exec.Command("powershell", "-Command", "(Get-CimInstance Win32_OperatingSystem).Caption")
+	captionOut, err := captionCmd.Output()
+	caption := ""
+	if err == nil {
+		caption = strings.TrimSpace(string(captionOut))
+		if strings.HasPrefix(caption, "Microsoft ") {
+			caption = caption[len("Microsoft "):]
+		}
+	}
+
+	versionCmd := exec.Command("powershell", "-Command", "(Get-CimInstance Win32_OperatingSystem).Version")
+	versionOut, err := versionCmd.Output()
+	version := ""
+	if err == nil {
+		version = strings.TrimSpace(string(versionOut))
+	}
+
+	if caption == "" && version == "" {
+		return "Windows"
+	}
+	return fmt.Sprintf("%s (%s)", caption, version)
+}
+
+func (s *SystemInfoCollector) GetPlatform() string {
+	return "native"
+}
+
+func (s *SystemInfoCollector) GetDeviceType() string {
+	return "Desktop"
+}
+
+func (s *SystemInfoCollector) GetArchitecture() string {
+	arch := os.Getenv("PROCESSOR_ARCHITECTURE")
+	if arch == "" {
+		return "X64"
+	}
+	return strings.ToUpper(arch)
+}
+
+func (s *SystemInfoCollector) GetCpuCores() string {
+	coresCmd := exec.Command("powershell", "-Command", "(Get-CimInstance Win32_Processor).NumberOfCores")
+	coresOut, err := coresCmd.Output()
+	physicalCores := ""
+	if err == nil {
+		physicalCores = strings.TrimSpace(string(coresOut))
+	}
+
+	logicalProcessors := os.Getenv("NUMBER_OF_PROCESSORS")
+	if logicalProcessors == "" {
+		logicalProcessors = "2"
+	}
+
+	cores := physicalCores
+	if cores == "" {
+		cores = logicalProcessors
+	}
+
+	return fmt.Sprintf("%s Cores / %s Threads", cores, logicalProcessors)
+}
+
+func (s *SystemInfoCollector) GetRamGB() string {
+	ramCmd := exec.Command("powershell", "-Command", "[Math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB)")
+	ramOut, err := ramCmd.Output()
+	if err != nil {
+		return "0"
+	}
+	return strings.TrimSpace(string(ramOut))
+}
+
+// ==========================================
 // AuthVaultixCore
 // ==========================================
 type AuthVaultixCore struct {
@@ -261,11 +336,18 @@ func (c *AuthVaultixCore) InitializeContext() bool {
 
 func (c *AuthVaultixCore) AuthenticateUser(username, password string) bool {
 	c.EnsureReady()
+	collector := &SystemInfoCollector{}
 	payload := NewPayloadBuilder("login").
 		WithContext(c.AppName, c.OwnerID, c.SessionID).
 		WithValue("username", username).
 		WithValue("pass", password).
 		WithValue("hwid", GetHWID()).
+		WithValue("os", collector.GetOSVersion()).
+		WithValue("platform", collector.GetPlatform()).
+		WithValue("device", collector.GetDeviceType()).
+		WithValue("architecture", collector.GetArchitecture()).
+		WithValue("cpu_cores", collector.GetCpuCores()).
+		WithValue("ram", collector.GetRamGB()).
 		Compile()
 
 	respBytes, err := c.Agent.Post(BaseURL, payload)
