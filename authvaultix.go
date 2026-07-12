@@ -409,6 +409,7 @@ func (c *AuthVaultixCore) AuthenticateUser(username, password string) bool {
 		WithValue("username", username).
 		WithValue("pass", password).
 		WithValue("hwid", GetHWID()).
+		WithValue("version", c.Version).
 		WithValue("os", collector.GetOSVersion()).
 		WithValue("platform", collector.GetPlatform()).
 		WithValue("device", collector.GetDeviceType()).
@@ -468,6 +469,13 @@ func (c *AuthVaultixCore) RegisterAccount(username, password, licenseKey, email 
 		WithValue("key", licenseKey).
 		WithValue("email", email).
 		WithValue("hwid", GetHWID()).
+		WithValue("version", c.Version).
+		WithValue("os", collector.GetOSVersion()).
+		WithValue("platform", collector.GetPlatform()).
+		WithValue("device", collector.GetDeviceType()).
+		WithValue("architecture", collector.GetArchitecture()).
+		WithValue("cpu_cores", collector.GetCpuCores()).
+		WithValue("ram", collector.GetRamGB()).
 		Compile()
 
 	respBytes, err := c.Agent.Post(BaseURL, payload)
@@ -498,6 +506,13 @@ func (c *AuthVaultixCore) LicenseAccess(licenseKey string) bool {
 		WithContext(c.AppName, c.OwnerID, c.SessionID).
 		WithValue("key", licenseKey).
 		WithValue("hwid", GetHWID()).
+		WithValue("version", c.Version).
+		WithValue("os", collector.GetOSVersion()).
+		WithValue("platform", collector.GetPlatform()).
+		WithValue("device", collector.GetDeviceType()).
+		WithValue("architecture", collector.GetArchitecture()).
+		WithValue("cpu_cores", collector.GetCpuCores()).
+		WithValue("ram", collector.GetRamGB()).
 		Compile()
 
 	respBytes, err := c.Agent.Post(BaseURL, payload)
